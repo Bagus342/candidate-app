@@ -61,12 +61,12 @@ jobs:
 
       - name: Add VM host key
         env:
-          VM_KNOWN_HOSTS: ${{ secrets.VM_KNOWN_HOSTS }}
+          VM_HOST: ${{ secrets.VM_HOST }}
         run: |
           set -euo pipefail
-          test -n "$VM_KNOWN_HOSTS"
+          test -n "$VM_HOST"
           mkdir -p ~/.ssh
-          printf '%s\n' "$VM_KNOWN_HOSTS" >> ~/.ssh/known_hosts
+          printf '%s\n' "$VM_HOST" >> ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
       - name: Deploy to VM
