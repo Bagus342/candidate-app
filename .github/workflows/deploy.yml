@@ -59,15 +59,17 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.VM_SSH_PRIVATE_KEY }}
 
-      - name: Add VM host key
+      - name: Setup SSH Config
         env:
           VM_HOST: ${{ secrets.VM_HOST }}
         run: |
-          set -euo pipefail
-          test -n "$VM_HOST"
           mkdir -p ~/.ssh
-          printf '%s\n' "$VM_HOST" >> ~/.ssh/known_hosts
-          chmod 600 ~/.ssh/known_hosts
+          
+          # Menambahkan konfigurasi SSH untuk host VM Anda
+          echo "Host $VM_HOST" > ~/.ssh/config
+          echo "  StrictHostKeyChecking accept-new" >> ~/.ssh/config
+          
+          chmod 600 ~/.ssh/config
 
       - name: Deploy to VM
         env:
