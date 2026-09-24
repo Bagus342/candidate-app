@@ -9,12 +9,16 @@ import (
 
 	"candidate-app/internal/product"
 	"candidate-app/internal/web"
+
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func main() {
 	ctx := context.Background()
-	databaseURL := getenv("DATABASE_URL", "postgres://app:app@localhost:5432/candidate_app?sslmode=disable")
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		log.Fatal("DATABASE_URL must be set")
+	}
 	pool, err := pgxpool.New(ctx, databaseURL)
 	if err != nil {
 		log.Fatalf("create database pool: %v", err)

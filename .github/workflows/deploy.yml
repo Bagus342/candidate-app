@@ -1,0 +1,96 @@
+name: CI/CD
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE_NAME: ghcr.io/${{ github.repository }}
+
+jobs:
+  pipeline:
+    name: Test, build, deploy, verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install dependency
+        run: go mod download
+
+      - name: Run test
+        run: go test ./...
+
+      - name: Build application
+        run: go build -trimpath -ldflags="-s -w" -o bin/candidate-app .
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Docker image
+        run: docker build --tag "$IMAGE_NAME:${GITHUB_SHA}" --tag "$IMAGE_NAME:latest" .
+
+      - name: Push Docker image
+        run: |
+          docker push "$IMAGE_NAME:${GITHUB_SHA}"
+          docker push "$IMAGE_NAME:latest"
+
+      - name: Configure SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.VM_SSH_PRIVATE_KEY }}
+
+      - name: Add VM host key
+        env:
+          VM_KNOWN_HOSTS: ${{ secrets.VM_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$VM_KNOWN_HOSTS"
+          mkdir -p ~/.ssh
+          printf '%s\n' "$VM_KNOWN_HOSTS" >> ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Deploy to VM
+        env:
+          VM_HOST: ${{ secrets.VM_HOST }}
+          VM_USER: ${{ secrets.VM_USER }}
+          VM_APP_DIR: ${{ secrets.VM_APP_DIR }}
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$VM_HOST"
+          test -n "$VM_USER"
+          test -n "$VM_APP_DIR"
+          ssh "$VM_USER@$VM_HOST" "mkdir -p '$VM_APP_DIR/migrations'"
+          scp docker-compose.yml "$VM_USER@$VM_HOST:$VM_APP_DIR/docker-compose.yml"
+          scp migrations/001_create_products.sql "$VM_USER@$VM_HOST:$VM_APP_DIR/migrations/001_create_products.sql"
+          printf '%s' "$GHCR_TOKEN" | ssh "$VM_USER@$VM_HOST" "docker login ghcr.io --username '$GHCR_USERNAME' --password-stdin"
+          ssh "$VM_USER@$VM_HOST" "cd '$VM_APP_DIR' && APP_IMAGE='$IMAGE_NAME:${GITHUB_SHA}' docker compose pull app && APP_IMAGE='$IMAGE_NAME:${GITHUB_SHA}' docker compose up -d --remove-orphans postgres app"
+
+      - name: Verify application
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$APP_URL"
+          curl --fail --silent --show-error --retry 10 --retry-delay 5 --retry-connrefused "$APP_URL/"
