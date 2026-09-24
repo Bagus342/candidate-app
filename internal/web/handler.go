@@ -22,7 +22,7 @@ type ProductService interface {
 
 type Handler struct {
 	service   ProductService
-	templates *template.Template
+	templates map[string]*template.Template
 }
 
 type pageData struct {
@@ -33,15 +33,26 @@ type pageData struct {
 }
 
 func NewHandler(service ProductService, templateDir string) (*Handler, error) {
-	templates, err := template.New("pages").Funcs(template.FuncMap{
+	funcs := template.FuncMap{
 		"formatPrice": func(cents int64) string {
 			return strconv.FormatInt(cents/100, 10) + "." + fmt.Sprintf("%02d", cents%100)
 		},
-	}).ParseFiles(templateDir+"/layout.html", templateDir+"/products.html", templateDir+"/product-form.html")
+	}
+	products, err := template.New("pages").Funcs(funcs).ParseFiles(templateDir+"/layout.html", templateDir+"/products.html")
 	if err != nil {
 		return nil, err
 	}
-	return &Handler{service: service, templates: templates}, nil
+	productForm, err := template.New("pages").Funcs(funcs).ParseFiles(templateDir+"/layout.html", templateDir+"/product-form.html")
+	if err != nil {
+		return nil, err
+	}
+	return &Handler{
+		service: service,
+		templates: map[string]*template.Template{
+			"products":     products,
+			"product-form": productForm,
+		},
+	}, nil
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -133,7 +144,12 @@ func productFromForm(r *http.Request) product.Product {
 }
 
 func (h *Handler) render(w http.ResponseWriter, name string, data pageData) {
-	if err := h.templates.ExecuteTemplate(w, name, data); err != nil {
+	templates, ok := h.templates[name]
+	if !ok {
+		h.serverError(w, fmt.Errorf("template %q not found", name))
+		return
+	}
+	if err := templates.ExecuteTemplate(w, name, data); err != nil {
 		h.serverError(w, err)
 	}
 }
