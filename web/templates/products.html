@@ -1,0 +1,28 @@
+{{ define "products" }}{{ template "layout" . }}{{ end }}
+{{ define "content" }}
+<section class="intro">
+  <p class="eyebrow">Inventory</p>
+  <h1>Products</h1>
+  <p class="muted">Manage your product catalog in one place.</p>
+</section>
+
+{{ if .Products }}
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>Name</th><th>Description</th><th>Price</th><th></th></tr></thead>
+    <tbody>
+    {{ range .Products }}
+      <tr>
+        <td><strong>{{ .Name }}</strong></td>
+        <td class="muted">{{ .Description }}</td>
+        <td>${{ formatPrice .Price }}</td>
+        <td class="actions"><a href="/products/{{ .ID }}">Edit</a><form method="post" action="/products/{{ .ID }}"><input type="hidden" name="_method" value="DELETE"><button type="submit" class="link-danger">Delete</button></form></td>
+      </tr>
+    {{ end }}
+    </tbody>
+  </table>
+</div>
+{{ else }}
+<div class="empty"><h2>No products yet</h2><p class="muted">Add your first product to get started.</p><a class="button button-primary" href="/products/new">Add product</a></div>
+{{ end }}
+{{ end }}

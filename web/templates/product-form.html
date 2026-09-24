@@ -1,0 +1,15 @@
+{{ define "product-form" }}{{ template "layout" . }}{{ end }}
+{{ define "content" }}
+<section class="intro">
+  <p class="eyebrow">Catalog</p>
+  <h1>{{ if .Product.ID }}Edit product{{ else }}New product{{ end }}</h1>
+  <p class="muted">Keep product details accurate and easy to scan.</p>
+</section>
+<form class="form" method="post" action="{{ if .Product.ID }}/products/{{ .Product.ID }}{{ else }}/products{{ end }}">
+  {{ if .Error }}<div class="alert">{{ .Error }}</div>{{ end }}
+  <label>Name<input name="name" required maxlength="120" value="{{ .Product.Name }}"></label>
+  <label>Description<textarea name="description" rows="5">{{ .Product.Description }}</textarea></label>
+  <label>Price in cents<input name="price" type="number" min="0" step="1" required value="{{ .Product.Price }}"></label>
+  <div class="form-actions"><a class="button" href="/">Cancel</a><button class="button button-primary" type="submit">Save product</button></div>
+</form>
+{{ end }}
